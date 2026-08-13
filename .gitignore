@@ -1,0 +1,20 @@
+# Data files (sensitive — share separately)
+*.xlsx
+*.xls
+
+# PPTX outputs (generated, not source)
+*_LATEST.pptx
+*_uploaded*.pptx
+_uploaded_impact_kpi.xlsx
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
