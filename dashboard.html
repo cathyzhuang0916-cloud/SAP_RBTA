@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APAC – Role Transformation KPIs | EA</title>
+<style>
+  :root {
+    --green:  #34A41C;
+    --amber:  #FFC000;
+    --red:    #FF0000;
+    --black:  #000000;
+    --blue:   #1990FE;
+    --bg:     #F7F8FA;
+    --card:   #FFFFFF;
+    --border: #DDE1E7;
+    --header-bg: #1C3557;
+    --header-text: #FFFFFF;
+    --section-bg: #E8EDF3;
+    --tab-active: #1990FE;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; background: var(--bg); color: #222; }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .topbar-left { display: flex; flex-direction: column; gap: 2px; }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: .3px; }
+  .topbar-title span { color: var(--blue); }
+  .topbar-meta { font-size: 11px; opacity: .85; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+  /* Upload / Export buttons */
+  .btn-upload, .btn-export {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background .2s;
+    white-space: nowrap;
+  }
+  .btn-upload { background: #1990FE; color: #fff; }
+  .btn-upload:hover { background: #0d74d1; }
+  .btn-upload:disabled { background: #888; cursor: not-allowed; }
+  .btn-export { background: #27ae60; color: #fff; }
+  .btn-export:hover { background: #1e8449; }
+  .btn-export:disabled { background: #888; cursor: not-allowed; }
+  .btn-upload .icon, .btn-export .icon { font-size: 14px; }
+
+  /* Spinner */
+  .spinner {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  .spinner.visible { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #333; color: #fff; padding: 10px 20px; border-radius: 8px;
+    font-size: 12px; opacity: 0; transition: opacity .3s; pointer-events: none;
+    z-index: 999;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { background: #c0392b; }
+  #toast.success { background: #27ae60; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); padding: 0 20px; }
+  .tab {
+    padding: 10px 20px; cursor: pointer; font-weight: 600; font-size: 12px;
+    color: #666; border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: color .2s, border-color .2s;
+  }
+  .tab:hover { color: var(--tab-active); }
+  .tab.active { color: var(--tab-active); border-bottom-color: var(--tab-active); }
+
+  /* ── Content ── */
+  .tab-content { display: none; padding: 16px 20px; }
+  .tab-content.active { display: block; }
+
+  /* ── Slide 1 table ── */
+  .kpi-wrapper { overflow-x: auto; }
+  table.kpi-table {
+    width: 100%; border-collapse: collapse; background: var(--card);
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); border-radius: 6px; overflow: hidden;
+  }
+  table.kpi-table th {
+    background: var(--header-bg); color: #fff; text-align: center;
+    padding: 7px 6px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  table.kpi-table th.col-kpi { text-align: left; }
+  table.kpi-table th.col-apac { background: #243f5e; }
+
+  table.kpi-table td {
+    padding: 5px 6px; border-bottom: 1px solid #eee;
+    text-align: center; font-size: 11.5px; white-space: nowrap;
+  }
+  table.kpi-table td.col-cat {
+    font-weight: 700; font-size: 11px; color: #fff;
+    background: var(--header-bg); writing-mode: vertical-rl;
+    text-orientation: mixed; transform: rotate(180deg);
+    text-align: center; padding: 8px 4px; white-space: nowrap;
+  }
+  table.kpi-table td.col-kpi { text-align: left; font-weight: 600; min-width: 160px; }
+  table.kpi-table td.col-delta { font-size: 10.5px; color: #555; padding-top: 1px; padding-bottom: 4px; }
+  table.kpi-table td.col-apac { background: #f0f4fa; font-weight: 700; }
+  table.kpi-table td.col-target { font-weight: 700; background: #1C3557; color: #fff; }
+  table.kpi-table tr.section-spacer td { height: 4px; background: #E8EDF3; border: none; }
+  table.kpi-table tr:last-child td { border-bottom: none; }
+
+  /* Bonus bar */
+  .bonus-bar {
+    background: #1C3557; color: #fff; font-size: 11px; font-weight: 600;
+    padding: 5px 12px; display: flex; gap: 16px;
+    border-radius: 4px 4px 0 0; margin-bottom: 0;
+  }
+  .bonus-bar span { opacity: .85; font-weight: 400; }
+  .bonus-bar strong { color: #FFC000; }
+
+  /* Legend */
+  .legend {
+    display: flex; align-items: center; gap: 20px;
+    padding: 8px 12px; background: #fff; border-top: 1px solid var(--border);
+    font-size: 11px; flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { font-size: 16px; line-height: 1; }
+  .legend-note { margin-left: auto; font-size: 10.5px; color: #888; }
+
+  /* ── Slide 2 table ── */
+  table.qual-table {
+    width: 100%; border-collapse: collapse; background: var(--card);
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); border-radius: 6px; overflow: hidden;
+  }
+  table.qual-table th {
+    background: var(--header-bg); color: #fff; padding: 8px 10px;
+    font-size: 11px; font-weight: 600; text-align: left;
+  }
+  table.qual-table td { padding: 7px 10px; border-bottom: 1px solid #eee; font-size: 11.5px; vertical-align: top; }
+  table.qual-table td.cat { font-weight: 700; font-size: 11px; white-space: nowrap; color: var(--header-bg); }
+  table.qual-table td.dot { text-align: center; font-size: 18px; vertical-align: middle; width: 40px; }
+  table.qual-table td.commentary { max-width: 600px; line-height: 1.5; }
+  table.qual-table tr.global-obs td { background: #f5f7fa; font-style: italic; }
+  table.qual-table tr:last-child td { border-bottom: none; }
+
+  .slide2-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .slide2-title { font-size: 13px; font-weight: 700; color: var(--header-bg); }
+  .slide2-legend { display: flex; gap: 14px; font-size: 11px; }
+
+  /* Footer meta bar */
+  .meta-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 20px; font-size: 10.5px; color: #888;
+    border-top: 1px solid var(--border); background: #fff;
+  }
+  .meta-bar a { color: var(--blue); text-decoration: none; }
+
+  /* Color utility classes */
+  .c-green { color: var(--green); font-weight: 700; }
+  .c-amber { color: var(--amber); font-weight: 700; }
+  .c-red   { color: var(--red);   font-weight: 700; }
+  .c-black { color: var(--black); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-title">APAC <span>– Role Transformation KPIs |</span> Enterprise Architect (EA)</div>
+    <div class="topbar-meta">Last Updated: <span id="timestamp">–</span> &nbsp;|&nbsp; Prior Month: <span id="prior_ts">–</span> &nbsp;|&nbsp; <a href="#" style="color:#7ec8ff">KPI Glossary</a> &nbsp;|&nbsp; <a href="#" style="color:#7ec8ff">KPI Changes</a></div>
+  </div>
+  <div class="topbar-right">
+    <input type="file" id="fileInput" accept=".xlsx" style="display:none">
+    <button class="btn-upload" id="uploadBtn" onclick="document.getElementById('fileInput').click()">
+      <span class="icon">&#128640;</span>
+      <span id="uploadLabel">Upload New Data + Refresh</span>
+      <span class="spinner" id="spinner"></span>
+    </button>
+    <button class="btn-export" id="exportBtn" onclick="exportPpt()">
+      <span class="icon">&#128196;</span>
+      <span>Export (PPT)</span>
+    </button>
+  </div>
+</div>
+
+<!-- BONUS BAR -->
+<div class="bonus-bar">
+  <div><strong>Bonus Plan KPIs:</strong> <span>Consumed ACV (cACV) (Territory) (Public)</span> &nbsp;|&nbsp; <span>Net Bookings (P&L) (Enterprise)</span></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab(0)">Slide 1 – KPI Table</div>
+  <div class="tab" onclick="switchTab(1)">Slide 2 – Qualitative Assessment</div>
+</div>
+
+<!-- SLIDE 1 -->
+<div class="tab-content active" id="tab0">
+  <div class="kpi-wrapper">
+    <table class="kpi-table" id="kpiTable">
+      <thead>
+        <tr>
+          <th style="width:16px"></th>
+          <th class="col-kpi">KPIs</th>
+          <th>ANZ</th><th>G.China</th><th>India</th><th>Japan</th><th>Korea</th><th>South East Asia</th>
+          <th class="col-apac">APAC Actual</th>
+          <th class="col-target">Q3 Target</th>
+        </tr>
+      </thead>
+      <tbody id="kpiBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot c-green">⬤</span> At or above target</div>
+    <div class="legend-item"><span class="legend-dot c-amber">⬤</span> Within 70%–99% of target</div>
+    <div class="legend-item"><span class="legend-dot c-red">⬤</span> Below 70% of target</div>
+    <div class="legend-item"><span class="legend-dot c-black">⬤</span> Measure not available</div>
+    <div class="legend-note">( ) = Change from prior report</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="meta-bar" style="margin-top:8px">
+    <span>Global Role Sponsor: Thomas Pfiester (Stephan Klein) &nbsp;|&nbsp; Global Role Owner: Alessandro Monaco &nbsp;|&nbsp; APAC Role Leader: Alex Aitken &nbsp;|&nbsp; APAC Role SPOC/DRI: Venky (Venkateswaran) Viswanathan</span>
+  </div>
+</div>
+
+<!-- SLIDE 2 -->
+<div class="tab-content" id="tab1">
+  <div class="slide2-header">
+    <div class="slide2-title">APAC – Qualitative Assessment of Improvement Execution | Enterprise Architect (EA)</div>
+    <div class="slide2-legend">
+      <span class="c-green">⬤ On Track</span>
+      <span class="c-amber">⬤ At Risk</span>
+      <span class="c-red">⬤ Delayed</span>
+      <span class="c-black">⬤ Not Started/Not Measured</span>
+    </div>
+  </div>
+  <div class="kpi-wrapper">
+    <table class="qual-table" id="qualTable">
+      <thead>
+        <tr>
+          <th style="width:110px">Category</th>
+          <th style="width:180px">KPI</th>
+          <th style="width:44px">APAC</th>
+          <th>Commentary</th>
+        </tr>
+      </thead>
+      <tbody id="qualBody"></tbody>
+    </table>
+  </div>
+  <div class="meta-bar" style="margin-top:8px">
+    <span>* Quarterly update of qualitative assessment on global level only</span>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+const REGIONS = ['ANZ','G.China','India','Japan','Korea','South East Asia','APAC'];
+
+function colorClass(c) {
+  return {green:'c-green', amber:'c-amber', red:'c-red', black:'c-black'}[c] || 'c-black';
+}
+function dotColor(c) {
+  return {green:'#34A41C', amber:'#FFC000', red:'#FF0000', black:'#000'}[c] || '#000';
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(idx) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-content').forEach((t,i) => t.classList.toggle('active', i===idx));
+}
+
+// ── Build slide 1 table ────────────────────────────────────────────────────
+function buildSlide1(slide1) {
+  const tbody = document.getElementById('kpiBody');
+  tbody.innerHTML = '';
+  const categories = Object.keys(slide1);
+
+  categories.forEach((cat, ci) => {
+    if (ci > 0) {
+      const sp = document.createElement('tr');
+      sp.className = 'section-spacer';
+      sp.innerHTML = `<td colspan="10"></td>`;
+      tbody.appendChild(sp);
+    }
+    const kpis = slide1[cat];
+    kpis.forEach((row, ki) => {
+      const catCell = ki === 0
+        ? `<td class="col-cat" rowspan="${kpis.length * 2}">${cat}</td>`
+        : '';
+
+      // Value row
+      const valTr = document.createElement('tr');
+      let valCells = catCell + `<td class="col-kpi">${row.kpi}</td>`;
+      REGIONS.forEach(r => {
+        const v   = row.values[r] || '–';
+        const cls = colorClass(row.colors[r]);
+        const isApac = r === 'APAC';
+        valCells += `<td class="${isApac ? 'col-apac ' : ''}${cls}">${v}</td>`;
+      });
+      valCells += `<td class="col-target">${row.target}</td>`;
+      valTr.innerHTML = valCells;
+      tbody.appendChild(valTr);
+
+      // Delta row
+      const deltaTr = document.createElement('tr');
+      let deltaCells = `<td class="col-kpi col-delta" style="color:#777;font-size:10.5px"></td>`;
+      REGIONS.forEach(r => {
+        const d   = row.deltas[r] || '(⬤)';
+        const cls = colorClass(row.colors[r]);
+        const isApac = r === 'APAC';
+        deltaCells += `<td class="col-delta ${isApac ? 'col-apac ' : ''}${cls}">${d}</td>`;
+      });
+      deltaCells += `<td class="col-target"></td>`;
+      deltaTr.innerHTML = deltaCells;
+      tbody.appendChild(deltaTr);
+    });
+  });
+}
+
+// ── Build slide 2 table ────────────────────────────────────────────────────
+function buildSlide2(slide2) {
+  const tbody = document.getElementById('qualBody');
+  tbody.innerHTML = '';
+  slide2.forEach(row => {
+    const tr = document.createElement('tr');
+    if (row.category === 'Global Observations*') tr.className = 'global-obs';
+    const dot = `<span style="color:${dotColor(row.status)}">⬤</span>`;
+    tr.innerHTML = `
+      <td class="cat">${row.category}</td>
+      <td>${row.kpi}</td>
+      <td class="dot">${dot}</td>
+      <td class="commentary">${row.commentary}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Load data from server ──────────────────────────────────────────────────
+function loadData() {
+  fetch('/data')
+    .then(r => r.json())
+    .then(d => {
+      if (!d || !d.slide1) return;
+      document.getElementById('timestamp').textContent = d.timestamp || '–';
+      document.getElementById('prior_ts').textContent  = d.prior_ts  || '–';
+      buildSlide1(d.slide1);
+      buildSlide2(d.slide2 || []);
+    })
+    .catch(e => showToast('Could not load KPI data: ' + e.message, 'error'));
+}
+
+// ── Upload handler (refresh dashboard only, no PPT download) ───────────────
+document.getElementById('fileInput').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  this.value = '';
+
+  const btn     = document.getElementById('uploadBtn');
+  const label   = document.getElementById('uploadLabel');
+  const spinner = document.getElementById('spinner');
+
+  btn.disabled = true;
+  label.textContent = 'Processing…';
+  spinner.classList.add('visible');
+
+  const form = new FormData();
+  form.append('file', file);
+
+  fetch('/upload', { method: 'POST', body: form })
+    .then(resp => {
+      if (!resp.ok) {
+        return resp.json().then(j => { throw new Error(j.error || resp.statusText); });
+      }
+      return resp.json().then(() => {
+        showToast('Dashboard refreshed with new data!', 'success');
+        loadData();
+      });
+    })
+    .catch(e => showToast('Error: ' + e.message, 'error'))
+    .finally(() => {
+      btn.disabled = false;
+      label.textContent = 'Upload New Data + Refresh';
+      spinner.classList.remove('visible');
+    });
+});
+
+// ── Export PPT handler ─────────────────────────────────────────────────────
+function exportPpt() {
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.querySelector('span:nth-child(2)').textContent = 'Exporting…';
+
+  fetch('/export', { method: 'POST' })
+    .then(resp => {
+      // Always read as blob — avoids any attempt to JSON-parse binary data
+      return resp.blob().then(blob => {
+        // If server returned an error it will be a tiny JSON blob, not a huge PPTX
+        if (!resp.ok || blob.size < 1000) {
+          // Try to read the error message as text
+          return blob.text().then(txt => {
+            let msg = 'Export failed';
+            try { msg = JSON.parse(txt).error || msg; } catch(e) { msg = txt || msg; }
+            throw new Error(msg);
+          });
+        }
+        const cd    = resp.headers.get('Content-Disposition') || '';
+        const match = cd.match(/filename="?([^"]+)"?/);
+        const fname = match ? match[1] : 'APAC_KPI_Latest.pptx';
+        const url   = URL.createObjectURL(blob);
+        const a     = document.createElement('a');
+        a.href = url; a.download = fname; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        showToast('PPT exported successfully!', 'success');
+      });
+    })
+    .catch(e => showToast('Export error: ' + e.message, 'error'))
+    .finally(() => {
+      btn.disabled = false;
+      btn.querySelector('span:nth-child(2)').textContent = 'Export (PPT)';
+    });
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  setTimeout(() => { t.className = ''; }, 4000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
