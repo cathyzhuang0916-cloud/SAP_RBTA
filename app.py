@@ -114,6 +114,9 @@ if __name__ == "__main__":
         print(f"  Using template: {tmpl.name}")
     except FileNotFoundError as e:
         print(f"  Warning: {e}")
-    print("Starting dashboard at http://localhost:5050")
-    threading.Timer(1.2, lambda: webbrowser.open("http://localhost:5050")).start()
-    app.run(host="0.0.0.0", port=5050, debug=False)
+    port = int(os.environ.get("PORT", 5050))
+    # Only open browser when running locally (not on a hosted server)
+    if port == 5050:
+        print("Starting dashboard at http://localhost:5050")
+        threading.Timer(1.2, lambda: webbrowser.open("http://localhost:5050")).start()
+    app.run(host="0.0.0.0", port=port, debug=False)
