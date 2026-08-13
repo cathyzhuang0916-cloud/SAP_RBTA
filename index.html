@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APAC – Role Transformation KPIs | EA</title>
+<style>
+  :root {
+    --green:  #34A41C;
+    --amber:  #FFC000;
+    --red:    #FF0000;
+    --black:  #000000;
+    --blue:   #1990FE;
+    --bg:     #F7F8FA;
+    --card:   #FFFFFF;
+    --border: #DDE1E7;
+    --header-bg: #1C3557;
+    --header-text: #FFFFFF;
+    --section-bg: #E8EDF3;
+    --tab-active: #1990FE;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; background: var(--bg); color: #222; }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .topbar-left { display: flex; flex-direction: column; gap: 2px; }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: .3px; }
+  .topbar-title span { color: var(--blue); }
+  .topbar-meta { font-size: 11px; opacity: .85; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+  /* Upload / Export buttons */
+  .btn-upload, .btn-export {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background .2s;
+    white-space: nowrap;
+  }
+  .btn-upload { background: #1990FE; color: #fff; }
+  .btn-upload:hover { background: #0d74d1; }
+  .btn-upload:disabled { background: #888; cursor: not-allowed; }
+  .btn-export { background: #27ae60; color: #fff; }
+  .btn-export:hover { background: #1e8449; }
+  .btn-export:disabled { background: #888; cursor: not-allowed; }
+  .btn-upload .icon, .btn-export .icon { font-size: 14px; }
+
+  /* Spinner */
+  .spinner {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  .spinner.visible { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #333; color: #fff; padding: 10px 20px; border-radius: 8px;
+    font-size: 12px; opacity: 0; transition: opacity .3s; pointer-events: none;
+    z-index: 999;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { background: #c0392b; }
+  #toast.success { background: #27ae60; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); padding: 0 20px; }
+  .tab {
+    padding: 10px 20px; cursor: pointer; font-weight: 600; font-size: 12px;
+    color: #666; border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: color .2s, border-color .2s;
+  }
+  .tab:hover { color: var(--tab-active); }
+  .tab.active { color: var(--tab-active); border-bottom-color: var(--tab-active); }
+
+  /* ── Content ── */
+  .tab-content { display: none; padding: 16px 20px; }
+  .tab-content.active { display: block; }
+
+  /* ── Slide 1 table ── */
+  .kpi-wrapper { overflow-x: auto; }
+  table.kpi-table {
+    width: 100%; border-collapse: collapse; background: var(--card);
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); border-radius: 6px; overflow: hidden;
+  }
+  table.kpi-table th {
+    background: var(--header-bg); color: #fff; text-align: center;
+    padding: 7px 6px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  table.kpi-table th.col-kpi { text-align: left; }
+  table.kpi-table th.col-apac { background: #243f5e; }
+
+  table.kpi-table td {
+    padding: 5px 6px; border-bottom: 1px solid #eee;
+    text-align: center; font-size: 11.5px; white-space: nowrap;
+  }
+  table.kpi-table td.col-cat {
+    font-weight: 700; font-size: 11px; color: #fff;
+    background: var(--header-bg); writing-mode: vertical-rl;
+    text-orientation: mixed; transform: rotate(180deg);
+    text-align: center; padding: 8px 4px; white-space: nowrap;
+  }
+  table.kpi-table td.col-kpi { text-align: left; font-weight: 600; min-width: 160px; }
+  table.kpi-table td.col-delta { font-size: 10.5px; color: #555; padding-top: 1px; padding-bottom: 4px; }
+  table.kpi-table td.col-apac { background: #f0f4fa; font-weight: 700; }
+  table.kpi-table td.col-target { font-weight: 700; background: #1C3557; color: #fff; }
+  table.kpi-table tr.section-spacer td { height: 4px; background: #E8EDF3; border: none; }
+  table.kpi-table tr:last-child td { border-bottom: none; }
+
+  /* Bonus bar */
+  .bonus-bar {
+    background: #1C3557; color: #fff; font-size: 11px; font-weight: 600;
+    padding: 5px 12px; display: flex; gap: 16px;
+    border-radius: 4px 4px 0 0; margin-bottom: 0;
+  }
+  .bonus-bar span { opacity: .85; font-weight: 400; }
+  .bonus-bar strong { color: #FFC000; }
+
+  /* Legend */
+  .legend {
+    display: flex; align-items: center; gap: 20px;
+    padding: 8px 12px; background: #fff; border-top: 1px solid var(--border);
+    font-size: 11px; flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { font-size: 16px; line-height: 1; }
+  .legend-note { margin-left: auto; font-size: 10.5px; color: #888; }
+
+  /* ── Slide 2 table ── */
+  table.qual-table {
+    width: 100%; border-collapse: collapse; background: var(--card);
+    box-shadow: 0 1px 4px rgba(0,0,0,.08); border-radius: 6px; overflow: hidden;
+  }
+  table.qual-table th {
+    background: var(--header-bg); color: #fff; padding: 8px 10px;
+    font-size: 11px; font-weight: 600; text-align: left;
+  }
+  table.qual-table td { padding: 7px 10px; border-bottom: 1px solid #eee; font-size: 11.5px; vertical-align: top; }
+  table.qual-table td.cat { font-weight: 700; font-size: 11px; white-space: nowrap; color: var(--header-bg); }
+  table.qual-table td.dot { text-align: center; font-size: 18px; vertical-align: middle; width: 40px; }
+  table.qual-table td.commentary { max-width: 600px; line-height: 1.5; }
+  table.qual-table tr.global-obs td { background: #f5f7fa; font-style: italic; }
+  table.qual-table tr:last-child td { border-bottom: none; }
+
+  .slide2-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .slide2-title { font-size: 13px; font-weight: 700; color: var(--header-bg); }
+  .slide2-legend { display: flex; gap: 14px; font-size: 11px; }
+
+  /* Footer meta bar */
+  .meta-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 20px; font-size: 10.5px; color: #888;
+    border-top: 1px solid var(--border); background: #fff;
+  }
+  .meta-bar a { color: var(--blue); text-decoration: none; }
+
+  /* Color utility classes */
+  .c-green { color: var(--green); font-weight: 700; }
+  .c-amber { color: var(--amber); font-weight: 700; }
+  .c-red   { color: var(--red);   font-weight: 700; }
+  .c-black { color: var(--black); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-title">APAC <span>– Role Transformation KPIs |</span> Enterprise Architect (EA)</div>
+    <div class="topbar-meta">Last Updated: <span id="timestamp">–</span> &nbsp;|&nbsp; Prior Month: <span id="prior_ts">–</span> &nbsp;|&nbsp; <a href="#" style="color:#7ec8ff">KPI Glossary</a> &nbsp;|&nbsp; <a href="#" style="color:#7ec8ff">KPI Changes</a></div>
+  </div>
+  <div class="topbar-right">
+    
+<span style="font-size:11px;opacity:.7;">View only — contact owner to refresh data</span>
+  </div>
+</div>
+
+<!-- BONUS BAR -->
+<div class="bonus-bar">
+  <div><strong>Bonus Plan KPIs:</strong> <span>Consumed ACV (cACV) (Territory) (Public)</span> &nbsp;|&nbsp; <span>Net Bookings (P&L) (Enterprise)</span></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab(0)">Slide 1 – KPI Table</div>
+  <div class="tab" onclick="switchTab(1)">Slide 2 – Qualitative Assessment</div>
+</div>
+
+<!-- SLIDE 1 -->
+<div class="tab-content active" id="tab0">
+  <div class="kpi-wrapper">
+    <table class="kpi-table" id="kpiTable">
+      <thead>
+        <tr>
+          <th style="width:16px"></th>
+          <th class="col-kpi">KPIs</th>
+          <th>ANZ</th><th>G.China</th><th>India</th><th>Japan</th><th>Korea</th><th>South East Asia</th>
+          <th class="col-apac">APAC Actual</th>
+          <th class="col-target">Q3 Target</th>
+        </tr>
+      </thead>
+      <tbody id="kpiBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot c-green">⬤</span> At or above target</div>
+    <div class="legend-item"><span class="legend-dot c-amber">⬤</span> Within 70%–99% of target</div>
+    <div class="legend-item"><span class="legend-dot c-red">⬤</span> Below 70% of target</div>
+    <div class="legend-item"><span class="legend-dot c-black">⬤</span> Measure not available</div>
+    <div class="legend-note">( ) = Change from prior report</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="meta-bar" style="margin-top:8px">
+    <span>Global Role Sponsor: Thomas Pfiester (Stephan Klein) &nbsp;|&nbsp; Global Role Owner: Alessandro Monaco &nbsp;|&nbsp; APAC Role Leader: Alex Aitken &nbsp;|&nbsp; APAC Role SPOC/DRI: Venky (Venkateswaran) Viswanathan</span>
+  </div>
+</div>
+
+<!-- SLIDE 2 -->
+<div class="tab-content" id="tab1">
+  <div class="slide2-header">
+    <div class="slide2-title">APAC – Qualitative Assessment of Improvement Execution | Enterprise Architect (EA)</div>
+    <div class="slide2-legend">
+      <span class="c-green">⬤ On Track</span>
+      <span class="c-amber">⬤ At Risk</span>
+      <span class="c-red">⬤ Delayed</span>
+      <span class="c-black">⬤ Not Started/Not Measured</span>
+    </div>
+  </div>
+  <div class="kpi-wrapper">
+    <table class="qual-table" id="qualTable">
+      <thead>
+        <tr>
+          <th style="width:110px">Category</th>
+          <th style="width:180px">KPI</th>
+          <th style="width:44px">APAC</th>
+          <th>Commentary</th>
+        </tr>
+      </thead>
+      <tbody id="qualBody"></tbody>
+    </table>
+  </div>
+  <div class="meta-bar" style="margin-top:8px">
+    <span>* Quarterly update of qualitative assessment on global level only</span>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+const REGIONS = ['ANZ','G.China','India','Japan','Korea','South East Asia','APAC'];
+
+function colorClass(c) {
+  return {green:'c-green', amber:'c-amber', red:'c-red', black:'c-black'}[c] || 'c-black';
+}
+function dotColor(c) {
+  return {green:'#34A41C', amber:'#FFC000', red:'#FF0000', black:'#000'}[c] || '#000';
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(idx) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-content').forEach((t,i) => t.classList.toggle('active', i===idx));
+}
+
+// ── Build slide 1 table ────────────────────────────────────────────────────
+function buildSlide1(slide1) {
+  const tbody = document.getElementById('kpiBody');
+  tbody.innerHTML = '';
+  const categories = Object.keys(slide1);
+
+  categories.forEach((cat, ci) => {
+    if (ci > 0) {
+      const sp = document.createElement('tr');
+      sp.className = 'section-spacer';
+      sp.innerHTML = `<td colspan="10"></td>`;
+      tbody.appendChild(sp);
+    }
+    const kpis = slide1[cat];
+    kpis.forEach((row, ki) => {
+      const catCell = ki === 0
+        ? `<td class="col-cat" rowspan="${kpis.length * 2}">${cat}</td>`
+        : '';
+
+      // Value row
+      const valTr = document.createElement('tr');
+      let valCells = catCell + `<td class="col-kpi">${row.kpi}</td>`;
+      REGIONS.forEach(r => {
+        const v   = row.values[r] || '–';
+        const cls = colorClass(row.colors[r]);
+        const isApac = r === 'APAC';
+        valCells += `<td class="${isApac ? 'col-apac ' : ''}${cls}">${v}</td>`;
+      });
+      valCells += `<td class="col-target">${row.target}</td>`;
+      valTr.innerHTML = valCells;
+      tbody.appendChild(valTr);
+
+      // Delta row
+      const deltaTr = document.createElement('tr');
+      let deltaCells = `<td class="col-kpi col-delta" style="color:#777;font-size:10.5px"></td>`;
+      REGIONS.forEach(r => {
+        const d   = row.deltas[r] || '(⬤)';
+        const cls = colorClass(row.colors[r]);
+        const isApac = r === 'APAC';
+        deltaCells += `<td class="col-delta ${isApac ? 'col-apac ' : ''}${cls}">${d}</td>`;
+      });
+      deltaCells += `<td class="col-target"></td>`;
+      deltaTr.innerHTML = deltaCells;
+      tbody.appendChild(deltaTr);
+    });
+  });
+}
+
+// ── Build slide 2 table ────────────────────────────────────────────────────
+function buildSlide2(slide2) {
+  const tbody = document.getElementById('qualBody');
+  tbody.innerHTML = '';
+  slide2.forEach(row => {
+    const tr = document.createElement('tr');
+    if (row.category === 'Global Observations*') tr.className = 'global-obs';
+    const dot = `<span style="color:${dotColor(row.status)}">⬤</span>`;
+    tr.innerHTML = `
+      <td class="cat">${row.category}</td>
+      <td>${row.kpi}</td>
+      <td class="dot">${dot}</td>
+      <td class="commentary">${row.commentary}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+
+// ── Static data (baked in at publish time) ────────────────────────────────
+const _STATIC_DATA = {
+  "timestamp": "07/08/2026",
+  "prior_ts": "01/07/2026",
+  "slide1": {
+    "Business Impact": [
+      {
+        "kpi": "Joule Activated",
+        "target": "65%",
+        "values": {
+          "ANZ": "49%",
+          "G.China": "57%",
+          "India": "69%",
+          "Japan": "65%",
+          "Korea": "46%",
+          "South East Asia": "64%",
+          "APAC": "60%"
+        },
+        "deltas": {
+          "ANZ": "(+6%)",
+          "G.China": "(⬤)",
+          "India": "(+8%)",
+          "Japan": "(+15%)",
+          "Korea": "(+8%)",
+          "South East Asia": "(+16%)",
+          "APAC": "(+9%)"
+        },
+        "colors": {
+          "ANZ": "amber",
+          "G.China": "amber",
+          "India": "green",
+          "Japan": "green",
+          "Korea": "amber",
+          "South East Asia": "amber",
+          "APAC": "amber"
+        }
+      },
+      {
+        "kpi": "AI Adoption Plan",
+        "target": "75%",
+        "values": {
+          "ANZ": "68%",
+          "G.China": "68%",
+          "India": "73%",
+          "Japan": "50%",
+          "Korea": "49%",
+          "South East Asia": "95%",
+          "APAC": "69%"
+        },
+        "deltas": {
+          "ANZ": "(+1%)",
+          "G.China": "(⬤)",
+          "India": "(⬤)",
+          "Japan": "(+6%)",
+          "Korea": "(+7%)",
+          "South East Asia": "(+9%)",
+          "APAC": "(+3%)"
+        },
+        "colors": {
+          "ANZ": "amber",
+          "G.China": "amber",
+          "India": "amber",
+          "Japan": "red",
+          "Korea": "red",
+          "South East Asia": "green",
+          "APAC": "amber"
+        }
+      },
+      {
+        "kpi": "RwSM Dashboard activated",
+        "target": "55%",
+        "values": {
+          "ANZ": "49%",
+          "G.China": "20%",
+          "India": "47%",
+          "Japan": "33%",
+          "Korea": "5%",
+          "South East Asia": "59%",
+          "APAC": "38%"
+        },
+        "deltas": {
+          "ANZ": "(+2%)",
+          "G.China": "(+2%)",
+          "India": "(+4%)",
+          "Japan": "(-3%)",
+          "Korea": "(-2%)",
+          "South East Asia": "(-2%)",
+          "APAC": "(⬤)"
+        },
+        "colors": {
+          "ANZ": "amber",
+          "G.China": "red",
+          "India": "amber",
+          "Japan": "red",
+          "Korea": "red",
+          "South East Asia": "green",
+          "APAC": "red"
+        }
+      },
+      {
+        "kpi": "Risk Assessment available",
+        "target": "50%",
+        "values": {
+          "ANZ": "68%",
+          "G.China": "100%",
+          "India": "86%",
+          "Japan": "53%",
+          "Korea": "79%",
+          "South East Asia": "95%",
+          "APAC": "81%"
+        },
+        "deltas": {
+          "ANZ": "(+21%)",
+          "G.China": "(⬤)",
+          "India": "(+9%)",
+          "Japan": "(⬤)",
+          "Korea": "(-2%)",
+          "South East Asia": "(+6%)",
+          "APAC": "(+6%)"
+        },
+        "colors": {
+          "ANZ": "green",
+          "G.China": "green",
+          "India": "green",
+          "Japan": "green",
+          "Korea": "green",
+          "South East Asia": "green",
+          "APAC": "green"
+        }
+      }
+    ],
+    "Tool Adoption": [
+      {
+        "kpi": "CALM tenant activated",
+        "target": "90%",
+        "values": {
+          "ANZ": "100%",
+          "G.China": "68%",
+          "India": "96%",
+          "Japan": "89%",
+          "Korea": "77%",
+          "South East Asia": "100%",
+          "APAC": "90%"
+        },
+        "deltas": {
+          "ANZ": "(⬤)",
+          "G.China": "(+3%)",
+          "India": "(+2%)",
+          "Japan": "(⬤)",
+          "Korea": "(+3%)",
+          "South East Asia": "(⬤)",
+          "APAC": "(+1%)"
+        },
+        "colors": {
+          "ANZ": "green",
+          "G.China": "amber",
+          "India": "green",
+          "Japan": "amber",
+          "Korea": "amber",
+          "South East Asia": "green",
+          "APAC": "green"
+        }
+      },
+      {
+        "kpi": "Gainsight Usage",
+        "target": "90%",
+        "values": {
+          "ANZ": "56%",
+          "G.China": "100%",
+          "India": "79%",
+          "Japan": "95%",
+          "Korea": "100%",
+          "South East Asia": "83%",
+          "APAC": "81%"
+        },
+        "deltas": {
+          "ANZ": "(⬤)",
+          "G.China": "(⬤)",
+          "India": "(⬤)",
+          "Japan": "(⬤)",
+          "Korea": "(⬤)",
+          "South East Asia": "(⬤)",
+          "APAC": "(⬤)"
+        },
+        "colors": {
+          "ANZ": "red",
+          "G.China": "green",
+          "India": "amber",
+          "Japan": "green",
+          "Korea": "green",
+          "South East Asia": "amber",
+          "APAC": "amber"
+        }
+      },
+      {
+        "kpi": "Active Signavio Usage",
+        "target": "65%",
+        "values": {
+          "ANZ": "84%",
+          "G.China": "33%",
+          "India": "70%",
+          "Japan": "78%",
+          "Korea": "33%",
+          "South East Asia": "70%",
+          "APAC": "72%"
+        },
+        "deltas": {
+          "ANZ": "(+11%)",
+          "G.China": "(+27%)",
+          "India": "(+48%)",
+          "Japan": "(+32%)",
+          "Korea": "(+18%)",
+          "South East Asia": "(+25%)",
+          "APAC": "(+32%)"
+        },
+        "colors": {
+          "ANZ": "green",
+          "G.China": "red",
+          "India": "green",
+          "Japan": "green",
+          "Korea": "red",
+          "South East Asia": "green",
+          "APAC": "green"
+        }
+      },
+      {
+        "kpi": "Active LeanIX usage",
+        "target": "50%",
+        "values": {
+          "ANZ": "89%",
+          "G.China": "100%",
+          "India": "100%",
+          "Japan": "100%",
+          "Korea": "50%",
+          "South East Asia": "83%",
+          "APAC": "91%"
+        },
+        "deltas": {
+          "ANZ": "(+31%)",
+          "G.China": "(+67%)",
+          "India": "(+78%)",
+          "Japan": "(+88%)",
+          "Korea": "(⬤)",
+          "South East Asia": "(+23%)",
+          "APAC": "(+48%)"
+        },
+        "colors": {
+          "ANZ": "green",
+          "G.China": "green",
+          "India": "green",
+          "Japan": "green",
+          "Korea": "green",
+          "South East Asia": "green",
+          "APAC": "green"
+        }
+      }
+    ],
+    "Coverage": [
+      {
+        "kpi": "EA Coverage (# of Customers)",
+        "target": "31.5%",
+        "values": {
+          "ANZ": "52%",
+          "G.China": "57%",
+          "India": "20%",
+          "Japan": "23%",
+          "Korea": "40%",
+          "South East Asia": "36%",
+          "APAC": "32%"
+        },
+        "deltas": {
+          "ANZ": "(⬤)",
+          "G.China": "(-2%)",
+          "India": "(-1%)",
+          "Japan": "(⬤)",
+          "Korea": "(+3%)",
+          "South East Asia": "(+3%)",
+          "APAC": "(+1%)"
+        },
+        "colors": {
+          "ANZ": "green",
+          "G.China": "green",
+          "India": "red",
+          "Japan": "amber",
+          "Korea": "green",
+          "South East Asia": "green",
+          "APAC": "green"
+        }
+      },
+      {
+        "kpi": "EA Coverage (Exit ACV)",
+        "target": "74%",
+        "values": {
+          "ANZ": "88%",
+          "G.China": "94%",
+          "India": "66%",
+          "Japan": "61%",
+          "Korea": "81%",
+          "South East Asia": "76%",
+          "APAC": "73%"
+        },
+        "deltas": {
+          "ANZ": "(⬤)",
+          "G.China": "(-1%)",
+          "India": "(-1%)",
+          "Japan": "(+1%)",
+          "Korea": "(+1%)",
+          "South East Asia": "(+2%)",
+          "APAC": "(⬤)"
+        },
+        "colors": {
+          "ANZ": "green",
+          "G.China": "green",
+          "India": "amber",
+          "Japan": "amber",
+          "Korea": "green",
+          "South East Asia": "green",
+          "APAC": "amber"
+        }
+      },
+      {
+        "kpi": "EA Customer Density",
+        "target": "3.2",
+        "values": {
+          "ANZ": "2.13",
+          "G.China": "5.33",
+          "India": "3.04",
+          "Japan": "2.46",
+          "Korea": "5.27",
+          "South East Asia": "3.0",
+          "APAC": "3.15"
+        },
+        "deltas": {
+          "ANZ": "(+0.07)",
+          "G.China": "(+0.11)",
+          "India": "(-0.04)",
+          "Japan": "(-0.02)",
+          "Korea": "(-0.03)",
+          "South East Asia": "(+0.13)",
+          "APAC": "(+0.05)"
+        },
+        "colors": {
+          "ANZ": "red",
+          "G.China": "green",
+          "India": "amber",
+          "Japan": "amber",
+          "Korea": "green",
+          "South East Asia": "amber",
+          "APAC": "amber"
+        }
+      },
+      {
+        "kpi": "EA ACV Density",
+        "target": "16.5 M€",
+        "values": {
+          "ANZ": "13.3 M€",
+          "G.China": "17.8 M€",
+          "India": "14.7 M€",
+          "Japan": "18.8 M€",
+          "Korea": "20.8 M€",
+          "South East Asia": "13.2 M€",
+          "APAC": "16.2 M€"
+        },
+        "deltas": {
+          "ANZ": "(+0.4)",
+          "G.China": "(+1.1)",
+          "India": "(+0.1)",
+          "Japan": "(+0.4)",
+          "Korea": "(-1.2)",
+          "South East Asia": "(-0.3)",
+          "APAC": "(+0.2)"
+        },
+        "colors": {
+          "ANZ": "amber",
+          "G.China": "green",
+          "India": "amber",
+          "Japan": "green",
+          "Korea": "green",
+          "South East Asia": "amber",
+          "APAC": "amber"
+        }
+      }
+    ],
+    "Learning": [
+      {
+        "kpi": "Lean IX Enablement",
+        "target": "85%",
+        "values": {
+          "ANZ": "78%",
+          "G.China": "56%",
+          "India": "68%",
+          "Japan": "58%",
+          "Korea": "75%",
+          "South East Asia": "71%",
+          "APAC": "68%"
+        },
+        "deltas": {
+          "ANZ": "(⬤)",
+          "G.China": "(⬤)",
+          "India": "(⬤)",
+          "Japan": "(⬤)",
+          "Korea": "(⬤)",
+          "South East Asia": "(⬤)",
+          "APAC": "(⬤)"
+        },
+        "colors": {
+          "ANZ": "amber",
+          "G.China": "red",
+          "India": "amber",
+          "Japan": "red",
+          "Korea": "amber",
+          "South East Asia": "amber",
+          "APAC": "amber"
+        }
+      },
+      {
+        "kpi": "EA Learning Journey",
+        "target": "85%",
+        "values": {
+          "ANZ": "78%",
+          "G.China": "56%",
+          "India": "68%",
+          "Japan": "58%",
+          "Korea": "75%",
+          "South East Asia": "71%",
+          "APAC": "68%"
+        },
+        "deltas": {
+          "ANZ": "(⬤)",
+          "G.China": "(⬤)",
+          "India": "(⬤)",
+          "Japan": "(⬤)",
+          "Korea": "(⬤)",
+          "South East Asia": "(⬤)",
+          "APAC": "(⬤)"
+        },
+        "colors": {
+          "ANZ": "amber",
+          "G.China": "red",
+          "India": "amber",
+          "Japan": "red",
+          "Korea": "amber",
+          "South East Asia": "amber",
+          "APAC": "amber"
+        }
+      }
+    ]
+  },
+  "slide2": [
+    {
+      "category": "Business Impact",
+      "kpi": "Joule Activated",
+      "status": "amber",
+      "commentary": "APAC YTD attainment of 60% (+9% MoM) vs Q3 target of 65%. Will progressively achieve the RBT targets. Lack of clarity on SAP managed Joule and shift from premium to Base hindering progress."
+    },
+    {
+      "category": "",
+      "kpi": "AI Adoption Plan",
+      "status": "amber",
+      "commentary": "APAC YTD attainment of 69% (+3% MoM) vs Q3 target of 75%. Will progressively achieve the RBT targets. Should become a part of EA MXP"
+    },
+    {
+      "category": "",
+      "kpi": "RwSM Dashboard activated",
+      "status": "red",
+      "commentary": "APAC YTD attainment of 38% vs Q3 target of 55%. Will progressively achieve the RBT targets. Challenge on availability of data has been overcome"
+    },
+    {
+      "category": "",
+      "kpi": "Risk Assessment available",
+      "status": "green",
+      "commentary": "APAC YTD attainment of 81% (+6% MoM) vs Q3 target of 50%."
+    },
+    {
+      "category": "Tool Adoption",
+      "kpi": "CALM Tenant Activated",
+      "status": "green",
+      "commentary": "APAC YTD attainment of 90% (+1% MoM) vs Q3 target of 90%. On track"
+    },
+    {
+      "category": "",
+      "kpi": "Gainsight Usage",
+      "status": "amber",
+      "commentary": "APAC YTD attainment of 81% vs Q3 target of 90%. This is gaining traction. Lack of EA KPIs other than these two a hinderance."
+    },
+    {
+      "category": "",
+      "kpi": "Active Signavio Usage",
+      "status": "green",
+      "commentary": "APAC YTD attainment of 72% (+32% MoM) vs Q3 target of 65%. Focus on the customer instances for the next quarter"
+    },
+    {
+      "category": "",
+      "kpi": "Active LeanIX Usage",
+      "status": "green",
+      "commentary": "APAC YTD attainment of 91% (+48% MoM) vs Q3 target of 50%. Focus on the customer instances for the next quarter"
+    },
+    {
+      "category": "Coverage",
+      "kpi": "EA Coverage (# of Customers)",
+      "status": "green",
+      "commentary": "APAC YTD attainment of 32% (+1% MoM) vs Q3 target of 31.5%. Coverage calculated based on eligible customer baseline."
+    },
+    {
+      "category": "",
+      "kpi": "EA Coverage (Exit ACV)",
+      "status": "amber",
+      "commentary": "APAC YTD attainment of 73% vs Q3 target of 74%. Coverage calculated based on eligible ACV baseline."
+    },
+    {
+      "category": "",
+      "kpi": "EA Customer Density",
+      "status": "amber",
+      "commentary": "APAC YTD attainment of 3.15 (+0.05 MoM) vs Q3 target of 3.2."
+    },
+    {
+      "category": "",
+      "kpi": "EA ACV Density",
+      "status": "amber",
+      "commentary": "APAC YTD attainment of 16.2 M€ (+0.2 MoM) vs Q3 target of 16.5 M€."
+    },
+    {
+      "category": "Learning",
+      "kpi": "Lean IX Enablement",
+      "status": "amber",
+      "commentary": "Only New hires to get certified."
+    },
+    {
+      "category": "",
+      "kpi": "EA Learning Journey",
+      "status": "amber",
+      "commentary": "Only New hires to get certified. Lack of IEA10 Budget a hinderance"
+    },
+    {
+      "category": "Global Observations*",
+      "kpi": "",
+      "status": "black",
+      "commentary": "Several KPIs below target are in line with expected Q3 progress. EA assignments finalised, KPI calculation updated. Coverage based on number of accounts shows low % due to broad eligible Business Partners. Coverage on ExitACV shows focus on most important targets is effective."
+    }
+  ]
+};
+
+function loadData() {
+  const d = _STATIC_DATA;
+  if (!d || !d.slide1) return;
+  document.getElementById('timestamp').textContent = d.timestamp || '–';
+  document.getElementById('prior_ts').textContent  = d.prior_ts  || '–';
+  buildSlide1(d.slide1);
+  buildSlide2(d.slide2 || []);
+}
+
+
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  setTimeout(() => { t.className = ''; }, 4000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
