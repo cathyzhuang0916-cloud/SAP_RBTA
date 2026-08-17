@@ -241,39 +241,62 @@ def _kpi_row_json(key, label, kpi_data):
 
 
 def kpi_data_to_json(kpi_data):
-    """Convert compute_kpis() output to the JSON structure the dashboard expects."""
+    """Convert compute_kpis() output to the JSON structure the dashboard expects.
+
+    KPI order (dashboard + PPT):
+      Joule → Signavio → LeanIX → Coverage (# + ACV) → Density (cust + ACV) → Gainsight → Learning
+    """
     mk = _kpi_row_json
+
+    # Flat ordered list — each entry has an extra 'category' key for grouping display
+    SLIDE1_ORDER = [
+        # Business Impact (4 KPIs)
+        ("joule",        "Joule Activated",              "Business Impact"),
+        ("ai_plan",      "AI Adoption Plan",             "Business Impact"),
+        ("rwsm",         "RwSM Dashboard activated",     "Business Impact"),
+        ("risk",         "Risk Assessment available",    "Business Impact"),
+        # Tool Adoption (4 KPIs)
+        ("calm",         "CALM tenant activated",        "Tool Adoption"),
+        ("gainsight",    "Gainsight Usage",              "Tool Adoption"),
+        ("signavio",     "Active Signavio Usage",        "Tool Adoption"),
+        ("leanix",       "Active LeanIX usage",          "Tool Adoption"),
+        # Coverage (4 KPIs)
+        ("ea_cust",      "EA Coverage (# of Customers)", "Coverage"),
+        ("ea_acv",       "EA Coverage (Exit ACV)",       "Coverage"),
+        ("ea_density",   "EA Customer Density",          "Coverage"),
+        ("ea_acv_den",   "EA ACV Density",               "Coverage"),
+        # Learning (2 KPIs)
+        ("leanix_enable","Lean IX Enablement",           "Learning"),
+        ("ea_learning",  "EA Learning Journey",          "Learning"),
+    ]
+
+    # Build rows with category tag embedded
+    slide1_rows = []
+    for key, label, cat in SLIDE1_ORDER:
+        row = mk(key, label, kpi_data)
+        row["category"] = cat
+        row["key"] = key
+        row["frozen"] = key in FROZEN
+        slide1_rows.append(row)
+
+    # Also keep the old dict format for PPT builder (by category)
     slide1 = {
-        "Business Impact": [
-            mk("joule",   "Joule Activated",          kpi_data),
-            mk("ai_plan", "AI Adoption Plan",          kpi_data),
-            mk("rwsm",    "RwSM Dashboard activated",  kpi_data),
-            mk("risk",    "Risk Assessment available", kpi_data),
-        ],
-        "Tool Adoption": [
-            mk("calm",      "CALM tenant activated",   kpi_data),
-            mk("gainsight", "Gainsight Usage",         kpi_data),
-            mk("signavio",  "Active Signavio Usage",   kpi_data),
-            mk("leanix",    "Active LeanIX usage",     kpi_data),
-        ],
-        "Coverage": [
-            mk("ea_cust",    "EA Coverage (# of Customers)", kpi_data),
-            mk("ea_acv",     "EA Coverage (Exit ACV)",       kpi_data),
-            mk("ea_density", "EA Customer Density",          kpi_data),
-            mk("ea_acv_den", "EA ACV Density",               kpi_data),
-        ],
-        "Learning": [
-            mk("leanix_enable", "Lean IX Enablement",   kpi_data),
-            mk("ea_learning",   "EA Learning Journey",  kpi_data),
-        ],
+        "Business Impact": [r for r in slide1_rows if r["category"] == "Business Impact"],
+        "Tool Adoption":   [r for r in slide1_rows if r["category"] == "Tool Adoption"],
+        "Coverage":        [r for r in slide1_rows if r["category"] == "Coverage"],
+        "Learning":        [r for r in slide1_rows if r["category"] == "Learning"],
+        "_ordered": slide1_rows,   # flat ordered list for the dashboard
     }
 
     v  = kpi_data["values"]
     pv = kpi_data.get("prior_vals", v)
     t  = kpi_data["targets"]
 
+    def _mom_val(key):
+        """Return MoM bracket string for APAC, or '' if zero/unavailable."""
+        return _mom_bracket(v[key]["APAC"], pv[key]["APAC"])
+
     def _commentary(key, extra_text):
-        """Build commentary: YTD attainment + MoM bracket + target + optional extra text."""
         apac_val  = v[key]["APAC"]
         prior_val = pv[key]["APAC"]
         bracket   = _mom_bracket(apac_val, prior_val)
@@ -282,64 +305,82 @@ def kpi_data_to_json(kpi_data):
         base = f"APAC YTD attainment of {apac_val}{mom_str} vs Q3 target of {tgt_val}."
         return f"{base} {extra_text}".strip()
 
+    FROZEN_COMMENTARY = "Frozen — no current target set."
+
+    # slide2 rows — same order as SLIDE1_ORDER (all 14 KPIs)
     slide2 = [
+        # Business Impact
         {"category":"Business Impact","kpi":"Joule Activated",
          "status": get_color_str(v["joule"]["APAC"], t["joule"]),
+         "mom": _mom_val("joule"), "frozen": False,
          "commentary": _commentary("joule", "Will progressively achieve the RBT targets. Lack of clarity on SAP managed Joule and shift from premium to Base hindering progress.")},
 
         {"category":"","kpi":"AI Adoption Plan",
          "status": get_color_str(v["ai_plan"]["APAC"], t["ai_plan"]),
-         "commentary": _commentary("ai_plan", "Will progressively achieve the RBT targets. Should become a part of EA MXP")},
+         "mom": _mom_val("ai_plan"), "frozen": False,
+         "commentary": _commentary("ai_plan", "Will progressively achieve the RBT targets. Should become a part of EA MXP.")},
 
         {"category":"","kpi":"RwSM Dashboard activated",
          "status": get_color_str(v["rwsm"]["APAC"], t["rwsm"]),
-         "commentary": _commentary("rwsm", "Will progressively achieve the RBT targets. Challenge on availability of data has been overcome")},
+         "mom": _mom_val("rwsm"), "frozen": False,
+         "commentary": _commentary("rwsm", "Will progressively achieve the RBT targets. Challenge on availability of data has been overcome.")},
 
         {"category":"","kpi":"Risk Assessment available",
          "status": get_color_str(v["risk"]["APAC"], t["risk"]),
+         "mom": _mom_val("risk"), "frozen": False,
          "commentary": _commentary("risk", "")},
 
-        {"category":"Tool Adoption","kpi":"CALM Tenant Activated",
+        # Tool Adoption
+        {"category":"Tool Adoption","kpi":"CALM tenant activated",
          "status": get_color_str(v["calm"]["APAC"], t["calm"]),
-         "commentary": _commentary("calm", "On track")},
+         "mom": _mom_val("calm"), "frozen": False,
+         "commentary": _commentary("calm", "On track.")},
 
         {"category":"","kpi":"Gainsight Usage",
-         "status": get_color_str(v["gainsight"]["APAC"], t["gainsight"]),
-         "commentary": _commentary("gainsight", "This is gaining traction. Lack of EA KPIs other than these two a hinderance.")},
+         "status": "frozen", "mom": "", "frozen": True,
+         "commentary": FROZEN_COMMENTARY},
 
         {"category":"","kpi":"Active Signavio Usage",
          "status": get_color_str(v["signavio"]["APAC"], t["signavio"]),
-         "commentary": _commentary("signavio", "Focus on the customer instances for the next quarter")},
+         "mom": _mom_val("signavio"), "frozen": False,
+         "commentary": _commentary("signavio", "Focus on the customer instances for the next quarter.")},
 
-        {"category":"","kpi":"Active LeanIX Usage",
+        {"category":"","kpi":"Active LeanIX usage",
          "status": get_color_str(v["leanix"]["APAC"], t["leanix"]),
-         "commentary": _commentary("leanix", "Focus on the customer instances for the next quarter")},
+         "mom": _mom_val("leanix"), "frozen": False,
+         "commentary": _commentary("leanix", "Focus on the customer instances for the next quarter.")},
 
+        # Coverage
         {"category":"Coverage","kpi":"EA Coverage (# of Customers)",
          "status": get_color_str(v["ea_cust"]["APAC"], t["ea_cust"]),
+         "mom": _mom_val("ea_cust"), "frozen": False,
          "commentary": _commentary("ea_cust", "Coverage calculated based on eligible customer baseline.")},
 
         {"category":"","kpi":"EA Coverage (Exit ACV)",
          "status": get_color_str(v["ea_acv"]["APAC"], t["ea_acv"]),
+         "mom": _mom_val("ea_acv"), "frozen": False,
          "commentary": _commentary("ea_acv", "Coverage calculated based on eligible ACV baseline.")},
 
         {"category":"","kpi":"EA Customer Density",
          "status": get_color_str(v["ea_density"]["APAC"], t["ea_density"]),
-         "commentary": _commentary("ea_density", "")},
+         "mom": _mom_val("ea_density"), "frozen": False,
+         "commentary": _commentary("ea_density", "Density compares YTD customer density vs target.")},
 
         {"category":"","kpi":"EA ACV Density",
          "status": get_color_str(v["ea_acv_den"]["APAC"], t["ea_acv_den"]),
-         "commentary": _commentary("ea_acv_den", "")},
+         "mom": _mom_val("ea_acv_den"), "frozen": False,
+         "commentary": _commentary("ea_acv_den", "Density compares YTD ACV density vs target.")},
 
+        # Learning
         {"category":"Learning","kpi":"Lean IX Enablement",
-         "status": get_color_str(v["leanix_enable"]["APAC"], t["leanix_enable"]),
-         "commentary": "Only New hires to get certified."},
+         "status": "frozen", "mom": "", "frozen": True,
+         "commentary": FROZEN_COMMENTARY},
 
         {"category":"","kpi":"EA Learning Journey",
-         "status": get_color_str(v["ea_learning"]["APAC"], t["ea_learning"]),
-         "commentary": "Only New hires to get certified. Lack of IEA10 Budget a hinderance"},
+         "status": "frozen", "mom": "", "frozen": True,
+         "commentary": FROZEN_COMMENTARY},
 
-        {"category":"Global Observations*","kpi":"","status":"black",
+        {"category":"Global Observations*","kpi":"","status":"black","mom":"","frozen":False,
          "commentary":"Several KPIs below target are in line with expected Q3 progress. EA assignments finalised, KPI calculation updated. Coverage based on number of accounts shows low % due to broad eligible Business Partners. Coverage on ExitACV shows focus on most important targets is effective."},
     ]
 
@@ -454,3 +495,142 @@ def build_pptx(kpi_data, template_path, output_path):
             pass
 
     prs.save(output_path)
+
+
+# ── KPI definitions for drilldown ────────────────────────────────────────────
+# Each KPI: base_mask_fn(df) → boolean Series, num_mask_fn(df) → boolean Series, status_col, status_label
+KPI_DRILLDOWN_DEFS = {
+    "joule":     {"base": lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["PREMIUM_AI_CUSTOMER"].astype(str).str.upper().str.strip()=="YES"),
+                  "num":  lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["PREMIUM_AI_CUSTOMER"].astype(str).str.upper().str.strip()=="YES") & (d["AI_ACTIVE_JOULE"].astype(str).str.upper().str.strip()=="YES"),
+                  "status_col": "AI_ACTIVE_JOULE", "status_label": "Joule Active"},
+    "ai_plan":   {"base": lambda d: d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True",
+                  "num":  lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["AI_ADOPTION_PLAN_ACTIVATED"].astype(str).str.strip()=="True"),
+                  "status_col": "AI_ADOPTION_PLAN_ACTIVATED", "status_label": "AI Plan Active"},
+    "rwsm":      {"base": lambda d: d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True",
+                  "num":  lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["RWSM_DASHBOARD_ACTIVATED"].astype(str).str.strip()=="True"),
+                  "status_col": "RWSM_DASHBOARD_ACTIVATED", "status_label": "RwSM Active"},
+    "risk":      {"base": lambda d: d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True",
+                  "num":  lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["HAS_PCE_RISK_ASSESSMENT"].astype(str).str.strip()=="True"),
+                  "status_col": "HAS_PCE_RISK_ASSESSMENT", "status_label": "Risk Assessment"},
+    "calm":      {"base": lambda d: d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True",
+                  "num":  lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["CALM_TENANT_ACTIVATED"].astype(str).str.strip()=="True"),
+                  "status_col": "CALM_TENANT_ACTIVATED", "status_label": "CALM Active"},
+    "signavio":  {"base": lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["SIGNAVIO_LICENSED"].astype(str).str.upper().str.strip()=="YES"),
+                  "num":  lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["SIGNAVIO_LICENSED"].astype(str).str.upper().str.strip()=="YES") & (d["SIGNAVIO_GT_5_PERCENT_CRATIO"].astype(str).str.strip()=="True"),
+                  "status_col": "SIGNAVIO_GT_5_PERCENT_CRATIO", "status_label": "Active Usage"},
+    "leanix":    {"base": lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["LEANIX_LICENSED"].astype(str).str.upper().str.strip()=="YES"),
+                  "num":  lambda d: (d["BASELINE_CUSTOMER_2026"].astype(str).str.strip()=="True") & (d["LEANIX_LICENSED"].astype(str).str.upper().str.strip()=="YES") & (d["LEAN_IX_USAGE"].astype(str).str.strip()=="True"),
+                  "status_col": "LEAN_IX_USAGE", "status_label": "Active Usage"},
+    "ea_cust":   {"base": lambda d: d["BASELINE_CUSTOMER_DYNAMIC"].astype(str).str.strip().isin(["True","ELIG_nCOV"]),
+                  "num":  lambda d: d["BASELINE_CUSTOMER_DYNAMIC"].astype(str).str.strip()=="True",
+                  "status_col": "BASELINE_CUSTOMER_DYNAMIC", "status_label": "EA Covered"},
+    "ea_acv":    {"base": lambda d: d["BASELINE_CUSTOMER_DYNAMIC"].astype(str).str.strip().isin(["True","ELIG_nCOV"]),
+                  "num":  lambda d: d["BASELINE_CUSTOMER_DYNAMIC"].astype(str).str.strip()=="True",
+                  "status_col": "BASELINE_CUSTOMER_DYNAMIC", "status_label": "EA Covered"},
+}
+
+
+def drilldown(excel_path, kpi_key, region, snapshot_date=None, df_cached=None):
+    """Return account-level rows for a given KPI + region + snapshot.
+    Pass df_cached to avoid re-reading the Excel file."""
+    if df_cached is not None:
+        df = df_cached
+    else:
+        df = pd.read_excel(excel_path, sheet_name="Impact KPI")
+    ts_col = pd.to_datetime(df["TIME_STAMP"], errors="coerce")
+
+    if snapshot_date:
+        target_ts = pd.Timestamp(snapshot_date)
+        df_snap = df[ts_col == target_ts].copy()
+    else:
+        latest_ts = ts_col.max()
+        df_snap = df[ts_col == latest_ts].copy()
+
+    if kpi_key not in KPI_DRILLDOWN_DEFS:
+        return {"error": f"No drilldown for {kpi_key}"}
+
+    defn   = KPI_DRILLDOWN_DEFS[kpi_key]
+    base_m = defn["base"](df_snap)
+    num_m  = defn["num"](df_snap)
+
+    # Filter by region
+    if region and region != "APAC":
+        reg_m  = df_snap[REG_COL] == region
+        base_m = base_m & reg_m
+        num_m  = num_m  & reg_m
+
+    df_base = df_snap[base_m].copy()
+    df_base["_activated"] = num_m[base_m]
+
+    # Include account name + id, region, EA, baseline flags, KPI status, ACV
+    keep_cols = ["LEADING_END_CUSTOMER", "LEADING_END_CUSTOMER_ID", REG_COL, "EA_NAME",
+                 "BASELINE_CUSTOMER_2026", "BASELINE_CUSTOMER_DYNAMIC",
+                 defn["status_col"], "EXIT_ACV"]
+    keep_cols = [c for c in keep_cols if c in df_base.columns]
+    df_out = df_base[keep_cols + ["_activated"]].drop_duplicates(subset=["LEADING_END_CUSTOMER_ID"])
+    df_out = df_out.sort_values("_activated", ascending=False)
+
+    # Rename for display
+    df_out = df_out.rename(columns={
+        "LEADING_END_CUSTOMER":    "Account Name",
+        "LEADING_END_CUSTOMER_ID": "Account ID",
+        REG_COL:                   "Region",
+        "EA_NAME":                 "EA Name",
+        "BASELINE_CUSTOMER_2026":  "B2026",
+        "BASELINE_CUSTOMER_DYNAMIC": "B Dynamic",
+        defn["status_col"]:        defn["status_label"],
+        "EXIT_ACV":                "Exit ACV (€)",
+        "_activated":              "KPI Met",
+    })
+
+    # Format Exit ACV as readable number
+    if "Exit ACV (€)" in df_out.columns:
+        df_out["Exit ACV (€)"] = df_out["Exit ACV (€)"].apply(
+            lambda x: f"{float(x)/1e6:.1f}M" if str(x).replace('.','').replace('-','').isdigit() or _is_numeric(x) else x
+        )
+
+    total   = len(df_out)
+    met     = int(df_out["KPI Met"].sum())
+    records = df_out.fillna("").astype(str).to_dict(orient="records")
+
+    return {
+        "kpi":     kpi_key,
+        "region":  region,
+        "snapshot": str(pd.Timestamp(df_snap["TIME_STAMP"].iloc[0]).date()) if len(df_snap) else "",
+        "total":   total,
+        "met":     met,
+        "pct":     round(100*met/total) if total else 0,
+        "columns": list(df_out.columns),
+        "rows":    records,
+    }
+
+def _is_numeric(x):
+    try: float(x); return True
+    except: return False
+
+
+def trend(excel_path, kpi_key, df_cached=None):
+    """Return all-region % for a KPI across all snapshots. Uses df_cached if provided."""
+    df = df_cached if df_cached is not None else pd.read_excel(excel_path, sheet_name="Impact KPI")
+    ts_col = pd.to_datetime(df["TIME_STAMP"], errors="coerce")
+    ts_sorted = sorted(ts_col.dropna().unique())
+
+    points = []
+    for ts in ts_sorted:
+        df_snap = df[ts_col == ts].copy()
+        vals    = _compute_kpis_for_snapshot(df_snap)
+        apac    = vals.get(kpi_key, {}).get("APAC", "N/A")
+        regions = {r: vals.get(kpi_key, {}).get(r, "N/A") for r in REGIONS}
+        points.append({
+            "date":   pd.Timestamp(ts).strftime("%d/%m"),
+            "APAC":   apac,
+            **regions,
+        })
+
+    return {
+        "kpi":     kpi_key,
+        "target":  Q3_TARGETS.get(kpi_key, ""),
+        "points":  points,
+        "regions": ALL_REGIONS,
+    }
+
